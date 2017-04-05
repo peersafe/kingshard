@@ -27,6 +27,7 @@ import (
 	"github.com/flike/kingshard/core/hack"
 	"github.com/flike/kingshard/mysql"
 	"github.com/flike/kingshard/proxy/router"
+	"github.com/flike/kingshard/ripple"
 	"github.com/flike/kingshard/sqlparser"
 )
 
@@ -98,8 +99,10 @@ func (c *ClientConn) handleQuery(sql string) (err error) {
 		return c.handleSimpleSelect(v)
 	case *sqlparser.Truncate:
 		return c.handleExec(stmt, nil)
+	case *sqlparser.DDL:
+		return c.handleDDL(v)
 	default:
-		return fmt.Errorf("statement %T not support now", stmt)
+		return fmt.Errorf("statement %T not support now", v)
 	}
 
 	return nil
@@ -345,29 +348,126 @@ func (c *ClientConn) newEmptyResultset(stmt *sqlparser.Select) *mysql.Resultset 
 	return r
 }
 
-func (c *ClientConn) handleExec(stmt sqlparser.Statement, args []interface{}) error {
-	plan, err := c.schema.rule.BuildPlan(c.db, stmt)
+// Native SQL convert to ChainSQL and push to ChainSQL's node
+func (c *ClientConn) exeSQLWriteToChainSQL(stmt sqlparser.Statement) error {
+	tx := ripple.NewTransaction()
+
+	var as_account string
+	var as_secret string
+	var use_account string
+
+	if c.current_as == nil {
+		as_account = c.proxy.cfg.Account
+		as_secret = c.proxy.cfg.Secret
+	} else {
+		as_account = c.current_as.Account
+		as_secret = c.current_as.Secret
+	}
+	if len(as_account) == 0 || len(as_secret) == 0 {
+		return fmt.Errorf("Please use admin's commad provide opretor's account and secret")
+	}
+
+	tx.SetAccount(as_account)
+	tx.SetSecret(as_secret)
+
+	if c.current_use == nil {
+		use_account = c.proxy.cfg.Account
+	} else {
+		use_account = c.current_use.Account
+	}
+	if len(use_account) == 0 {
+		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
+	}
+
+	tx.SetOwner(use_account)
+
+	var err error
+	switch v := stmt.(type) {
+	case *sqlparser.Insert:
+		err = ripple.HandleInsert(v, tx)
+	case *sqlparser.Update:
+		err = ripple.HandleUpdate(v, tx)
+	case *sqlparser.Delete:
+		err = ripple.HandleDelete(v, tx)
+	default:
+		return fmt.Errorf("statement %T not support now", stmt)
+	}
+
 	if err != nil {
 		return err
 	}
-	conns, err := c.getShardConns(false, plan)
-	defer c.closeShardConns(conns, err != nil)
-	if err != nil {
-		golog.Error("ClientConn", "handleExec", err.Error(), c.connectionId)
-		return err
-	}
-	if conns == nil {
-		return c.writeOK(nil)
-	}
 
-	var rs []*mysql.Result
+	err = tx.WriteToChainSQL(c.ws_conn)
 
-	rs, err = c.executeInMultiNodes(conns, plan.RewrittenSqls, args)
 	if err == nil {
-		err = c.mergeExecResult(rs)
+		result := &mysql.Result{
+			Status:       0,
+			InsertId:     0,
+			AffectedRows: 1,
+
+			Resultset: &mysql.Resultset{},
+		}
+		return c.writeOK(result)
 	}
 
 	return err
+
+}
+
+func (c *ClientConn) handleExec(stmt sqlparser.Statement, args []interface{}) error {
+	return c.exeSQLWriteToChainSQL(stmt)
+}
+
+func (c *ClientConn) handleDDL(ddl *sqlparser.DDL) error {
+	tx := ripple.NewTransaction()
+
+	var as_account string
+	var as_secret string
+
+	if c.current_as == nil {
+		as_account = c.proxy.cfg.Account
+		as_secret = c.proxy.cfg.Secret
+	} else {
+		as_account = c.current_as.Account
+		as_secret = c.current_as.Secret
+	}
+	if len(as_account) == 0 || len(as_secret) == 0 {
+		return fmt.Errorf("Please use admin's commad provide opretor's account and secret")
+	}
+	tx.SetAccount(as_account)
+	tx.SetSecret(as_secret)
+
+	// get nameInDB
+	var use_account string
+	if c.current_use == nil {
+		use_account = c.proxy.cfg.Account
+	} else {
+		use_account = c.current_use.Account
+	}
+	if len(use_account) == 0 {
+		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
+	}
+	nameInDB, err := ripple.GetNameInDB(string(ddl.Table), use_account, c.ws_conn)
+	if err != nil {
+		return err
+	}
+
+	if err := ripple.HandleDDL(ddl, tx, nameInDB); err != nil {
+		return err
+	}
+
+	if err := tx.SimpleWriteToChainSQL(c.ws_conn); err != nil {
+		return err
+	}
+
+	result := &mysql.Result{
+		Status:       0,
+		InsertId:     0,
+		AffectedRows: 1,
+
+		Resultset: &mysql.Resultset{},
+	}
+	return c.writeOK(result)
 }
 
 func (c *ClientConn) mergeExecResult(rs []*mysql.Result) error {

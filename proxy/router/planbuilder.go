@@ -485,7 +485,7 @@ func (plan *Plan) GetIRKeyIndex(cols sqlparser.Columns) error {
 	plan.KeyIndex = -1
 	for i, _ := range cols {
 		colname := string(cols[i].(*sqlparser.NonStarExpr).Expr.(*sqlparser.ColName).Name)
-
+		golog.Info("proxy", "GetIRKeyIndex", colname+" , "+plan.Rule.Key, 0)
 		if strings.ToLower(colname) == plan.Rule.Key {
 			plan.KeyIndex = i
 			break

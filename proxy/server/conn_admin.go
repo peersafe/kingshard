@@ -34,8 +34,9 @@ const (
 	Master = "master"
 	Slave  = "slave"
 
-	ServerRegion = "server"
-	NodeRegion   = "node"
+	ServerRegion   = "server"
+	NodeRegion     = "node"
+	ChainSQLRegion = "chainsql"
 
 	//op
 	ADMIN_OPT_ADD     = "add"
@@ -44,6 +45,8 @@ const (
 	ADMIN_OPT_DOWN    = "down"
 	ADMIN_OPT_SHOW    = "show"
 	ADMIN_OPT_CHANGE  = "change"
+	ADMIN_OPT_AS      = "as"
+	ADMIN_OPT_USE     = "use"
 	ADMIN_SAVE_CONFIG = "save"
 
 	ADMIN_PROXY         = "proxy"
@@ -154,6 +157,10 @@ func (c *ClientConn) handleServerCmd(rows sqlparser.InsertRows) (*mysql.Resultse
 		err = c.handleAdminAdd(k, v)
 	case ADMIN_OPT_DEL:
 		err = c.handleAdminDelete(k, v)
+	case ADMIN_OPT_AS:
+		err = c.handleAdminChainSQLAs(k, v)
+	case ADMIN_OPT_USE:
+		err = c.handleAdminChainSQLUse(k)
 	case ADMIN_SAVE_CONFIG:
 		err = c.handleAdminSave(k, v)
 	default:
@@ -211,11 +218,10 @@ func (c *ClientConn) DownDatabase(nodeName string, role string, addr string) err
 func (c *ClientConn) checkCmdOrder(region string, columns sqlparser.Columns) error {
 	var cmdOrder []string
 	node := sqlparser.SelectExprs(columns)
-
 	switch region {
 	case NodeRegion:
 		cmdOrder = cmdNodeOrder
-	case ServerRegion:
+	case ServerRegion, ChainSQLRegion:
 		cmdOrder = cmdServerOrder
 	default:
 		return errors.ErrCmdUnsupport
@@ -303,7 +309,7 @@ func (c *ClientConn) handleAdmin(admin *sqlparser.Admin) error {
 	switch strings.ToLower(region) {
 	case NodeRegion:
 		err = c.handleNodeCmd(admin.Rows)
-	case ServerRegion:
+	case ServerRegion, ChainSQLRegion:
 		result, err = c.handleServerCmd(admin.Rows)
 	default:
 		return fmt.Errorf("admin %s not supported now", region)
@@ -400,6 +406,30 @@ func (c *ClientConn) handleAdminDelete(k, v string) error {
 	}
 
 	return errors.ErrCmdUnsupport
+}
+
+func (c *ClientConn) handleAdminChainSQLAs(k, v string) error {
+	if len(k) == 0 || len(v) == 0 {
+		return fmt.Errorf("Either k or v may be empty.")
+	}
+	if c.current_as == nil {
+		c.current_as = new(ChainSQLAS_Privilege)
+	}
+	c.current_as.Account = k
+	c.current_as.Secret = v
+
+	return nil
+}
+
+func (c *ClientConn) handleAdminChainSQLUse(k string) error {
+	if len(k) == 0 {
+		return fmt.Errorf("k is empty.")
+	}
+	if c.current_use == nil {
+		c.current_use = new(ChainSQLUse_Privilege)
+	}
+	c.current_use.Account = k
+	return nil
 }
 
 func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {

@@ -26,7 +26,17 @@ import (
 	"github.com/flike/kingshard/core/golog"
 	"github.com/flike/kingshard/core/hack"
 	"github.com/flike/kingshard/mysql"
+	"github.com/gorilla/websocket"
 )
+
+type ChainSQLAS_Privilege struct {
+	Account string
+	Secret  string
+}
+
+type ChainSQLUse_Privilege struct {
+	Account string
+}
 
 //client <-> proxy
 type ClientConn struct {
@@ -35,6 +45,10 @@ type ClientConn struct {
 	pkg *mysql.PacketIO
 
 	c net.Conn
+	// chainsql
+	ws_conn     *websocket.Conn // websocket
+	current_as  *ChainSQLAS_Privilege
+	current_use *ChainSQLUse_Privilege
 
 	proxy *Server
 
@@ -122,6 +136,8 @@ func (c *ClientConn) Close() error {
 	if c.closed {
 		return nil
 	}
+
+	c.ws_conn.Close() // close web socket
 
 	c.c.Close()
 
@@ -268,7 +284,6 @@ func (c *ClientConn) Run() {
 
 	for {
 		data, err := c.readPacket()
-
 		if err != nil {
 			return
 		}

@@ -167,13 +167,19 @@ func (c *ClientConn) GetExecDB(tokens []string, sql string) (*ExecuteDB, error) 
 		if ok == true {
 			switch tokenId {
 			case mysql.TK_ID_SELECT:
-				return c.getSelectExecDB(sql, tokens, tokensLen)
+				//return c.getSelectExecDB(sql, tokens, tokensLen)
+				return nil, nil
 			case mysql.TK_ID_DELETE:
-				return c.getDeleteExecDB(sql, tokens, tokensLen)
+				//return c.getDeleteExecDB(sql, tokens, tokensLen)
+				return nil, nil // ripple
 			case mysql.TK_ID_INSERT, mysql.TK_ID_REPLACE:
-				return c.getInsertOrReplaceExecDB(sql, tokens, tokensLen)
+				//return c.getInsertOrReplaceExecDB(sql, tokens, tokensLen)
+				return nil, nil // ripple
 			case mysql.TK_ID_UPDATE:
-				return c.getUpdateExecDB(sql, tokens, tokensLen)
+				//return c.getUpdateExecDB(sql, tokens, tokensLen)
+				return nil, nil // ripple
+			case mysql.TK_ID_DROP, mysql.TK_ID_RENAME, mysql.TK_ID_ALTER:
+				return nil, nil // ripple
 			case mysql.TK_ID_SET:
 				return c.getSetExecDB(sql, tokens, tokensLen)
 			case mysql.TK_ID_SHOW:
@@ -185,6 +191,7 @@ func (c *ClientConn) GetExecDB(tokens []string, sql string) (*ExecuteDB, error) 
 			}
 		}
 	}
+
 	executeDB := new(ExecuteDB)
 	executeDB.sql = sql
 	err := c.setExecuteNode(tokens, tokensLen, executeDB)
@@ -242,6 +249,7 @@ func (c *ClientConn) getSelectExecDB(sql string, tokens []string, tokensLen int)
 					} else {
 						ruleDB = c.db
 					}
+
 					if router.GetRule(ruleDB, tableName) != router.DefaultRule {
 						return nil, nil
 					} else {
@@ -425,7 +433,11 @@ func (c *ClientConn) getSetExecDB(sql string, tokens []string, tokensLen int) (*
 func (c *ClientConn) getShowExecDB(sql string, tokens []string, tokensLen int) (*ExecuteDB, error) {
 	executeDB := new(ExecuteDB)
 	executeDB.IsSlave = true
-	executeDB.sql = sql
+	if c.current_use != nil && len(c.current_use.Account) != 0 {
+		executeDB.sql = "select tablename,TableNameInDB from synctablestate where Owner = '" + c.current_use.Account + "'"
+	} else {
+		executeDB.sql = sql
+	}
 
 	//handle show columns/fields
 	err := c.handleShowColumns(sql, tokens, tokensLen, executeDB)

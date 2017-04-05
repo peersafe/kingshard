@@ -16,9 +16,11 @@ package server
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"runtime"
 	"strconv"
@@ -33,6 +35,7 @@ import (
 	"github.com/flike/kingshard/core/errors"
 	"github.com/flike/kingshard/core/golog"
 	"github.com/flike/kingshard/proxy/router"
+	"github.com/gorilla/websocket"
 )
 
 type Schema struct {
@@ -300,6 +303,12 @@ func (s *Server) newClientConn(co net.Conn) *ClientConn {
 
 	c.pkg = mysql.NewPacketIO(tcpConn)
 	c.proxy = s
+
+	// init websocket
+	addr := flag.String("addr", s.cfg.WSAddr, "http service address")
+	flag.Parse()
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/"}
+	c.ws_conn, _, _ = websocket.DefaultDialer.Dial(u.String(), nil)
 
 	c.pkg.Sequence = 0
 

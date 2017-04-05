@@ -176,6 +176,9 @@ var (
 	TK_ID_TRANSACTION = 13
 	TK_ID_SHOW        = 14
 	TK_ID_TRUNCATE    = 15
+	TK_ID_DROP        = 16 // support for chainSQL
+	TK_ID_RENAME      = 17 // support for chainSQL
+	TK_ID_ALTER       = 18 // support for chainSQL
 
 	PARSE_TOKEN_MAP = map[string]int{
 		"insert":      TK_ID_INSERT,
@@ -193,6 +196,9 @@ var (
 		"transaction": TK_ID_TRANSACTION,
 		"show":        TK_ID_SHOW,
 		"truncate":    TK_ID_TRUNCATE,
+		"drop":        TK_ID_DROP,   // support for chainSQL
+		"rename":      TK_ID_RENAME, // support for chainSQL
+		"alter":       TK_ID_ALTER,  // support for chainSQL
 	}
 	// '*'
 	COMMENT_PREFIX uint8 = 42
