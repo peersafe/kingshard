@@ -128,7 +128,6 @@ func (c *ClientConn) handleServerCmd(rows sqlparser.InsertRows) (*mysql.Resultse
 	var err error
 	var result *mysql.Resultset
 	var opt, k, v string
-	fmt.Printf("zzzzzzzzzzzzzzzzz %s\n", sqlparser.String(rows.(sqlparser.Values)))
 	vals := rows.(sqlparser.Values)
 	if len(vals) == 0 {
 		return nil, errors.ErrCmdUnsupport
@@ -298,9 +297,7 @@ func (c *ClientConn) handleAdminHelp(ah *sqlparser.AdminHelp) error {
 func (c *ClientConn) handleAdmin(admin *sqlparser.Admin) error {
 	var err error
 	var result *mysql.Resultset
-	fmt.Printf("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy01 %s\n", sqlparser.String(admin))
 	region := sqlparser.String(admin.Region)
-	fmt.Printf("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy02 %s\n", region)
 	err = c.checkCmdOrder(region, admin.Columns)
 	if err != nil {
 		return err

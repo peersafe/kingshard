@@ -96,7 +96,6 @@ func (c *ClientConn) handleQuery(sql string) (err error) {
 	case *sqlparser.Rollback:
 		return c.handleRollback()
 	case *sqlparser.Admin:
-		fmt.Printf("xxxxxxxxxxxxxxxxxxxxxxx %s\n", sqlparser.String(v))
 		return c.handleAdmin(v)
 	case *sqlparser.AdminHelp:
 		return c.handleAdminHelp(v)
