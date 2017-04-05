@@ -64,7 +64,13 @@ func (c *ClientConn) handleQuery(sql string) (err error) {
 	}
 
 	var stmt sqlparser.Statement
-	stmt, err = sqlparser.Parse(sql) //解析sql语句,得到的stmt是一个interface
+	//解析sql语句,得到的stmt是一个interface
+	if c.current_use != nil && len(c.current_use.Account) > 0 {
+		stmt, err = sqlparser.Parse2(sql, c.current_use.Account, c.ws_conn, ripple.GetNameInDB)
+	} else {
+		stmt, err = sqlparser.Parse(sql)
+	}
+
 	if err != nil {
 		golog.Error("server", "parse", err.Error(), 0, "hasHandled", hasHandled, "sql", sql)
 		return err
@@ -90,6 +96,7 @@ func (c *ClientConn) handleQuery(sql string) (err error) {
 	case *sqlparser.Rollback:
 		return c.handleRollback()
 	case *sqlparser.Admin:
+		fmt.Printf("xxxxxxxxxxxxxxxxxxxxxxx %s\n", sqlparser.String(v))
 		return c.handleAdmin(v)
 	case *sqlparser.AdminHelp:
 		return c.handleAdminHelp(v)

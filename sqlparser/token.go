@@ -24,9 +24,12 @@ import (
 	"strings"
 
 	"github.com/flike/kingshard/sqltypes"
+	"github.com/gorilla/websocket"
 )
 
 const EOFCHAR = 0x100
+
+type ConVertFunc func(name string, owner string, c *websocket.Conn) ([]byte, error)
 
 // Tokenizer is the struct used to generate SQL
 // tokens for the parser.
@@ -40,12 +43,20 @@ type Tokenizer struct {
 	LastError     string
 	posVarIndex   int
 	ParseTree     Statement
+
+	owner     string          // for ChainSQL
+	ws_conn   *websocket.Conn // websocket
+	Convertcb ConVertFunc
 }
 
 // NewStringTokenizer creates a new Tokenizer for the
 // sql string.
 func NewStringTokenizer(sql string) *Tokenizer {
 	return &Tokenizer{InStream: strings.NewReader(sql)}
+}
+
+func NewChainSQLTokenizer(sql string, owner string, ws *websocket.Conn, cb ConVertFunc) *Tokenizer {
+	return &Tokenizer{InStream: strings.NewReader(sql), owner: owner, ws_conn: ws, Convertcb: cb}
 }
 
 var keywords = map[string]int{
@@ -163,6 +174,21 @@ func (tkn *Tokenizer) Error(err string) {
 		fmt.Fprintf(buf, "%s at position %v", err, tkn.Position)
 	}
 	tkn.LastError = buf.String()
+}
+
+func (tkn *Tokenizer) ConvertToNameId(name string) ([]byte, error) {
+	if len(tkn.owner) == 0 {
+		return nil, fmt.Errorf("Token's owner must be specified when ConvertToNameId")
+	}
+
+	if tkn.ws_conn == nil {
+		return nil, fmt.Errorf("Token's websocket must be specified when ConvertToNameId")
+	}
+
+	if tkn.Convertcb == nil {
+		return nil, fmt.Errorf("Token's ConVertFunc must be specified when ConvertToNameId")
+	}
+	return tkn.Convertcb(name, tkn.owner, tkn.ws_conn)
 }
 
 // Scan scans the tokenizer for the next token and returns

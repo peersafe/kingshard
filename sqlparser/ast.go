@@ -24,6 +24,7 @@ import (
 
 	"github.com/flike/kingshard/core/hack"
 	"github.com/flike/kingshard/sqltypes"
+	"github.com/gorilla/websocket"
 )
 
 // Instructions for creating new types: If a type
@@ -43,6 +44,14 @@ import (
 // is the AST representation of the query.
 func Parse(sql string) (Statement, error) {
 	tokenizer := NewStringTokenizer(sql)
+	if yyParse(tokenizer) != 0 {
+		return nil, errors.New(tokenizer.LastError)
+	}
+	return tokenizer.ParseTree, nil
+}
+
+func Parse2(sql string, owner string, ws *websocket.Conn, cb ConVertFunc) (Statement, error) {
+	tokenizer := NewChainSQLTokenizer(sql, owner, ws, cb)
 	if yyParse(tokenizer) != 0 {
 		return nil, errors.New(tokenizer.LastError)
 	}
@@ -113,6 +122,7 @@ const (
 )
 
 func (node *Select) Format(buf *TrackedBuffer) {
+
 	buf.Fprintf("select %v%s%v from %v%v%v%v%v%v%s",
 		node.Comments, node.Distinct, node.SelectExprs,
 		node.From, node.Where,
@@ -356,6 +366,7 @@ func (*Subquery) ISimpleTableExpr()  {}
 // TableName represents a table  name.
 type TableName struct {
 	Name, Qualifier []byte
+	Convert         bool // convert into TableNameInDB in ChainSQL
 }
 
 func (node *TableName) Format(buf *TrackedBuffer) {

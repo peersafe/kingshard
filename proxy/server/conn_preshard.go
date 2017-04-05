@@ -24,6 +24,7 @@ import (
 	"github.com/flike/kingshard/core/hack"
 	"github.com/flike/kingshard/mysql"
 	"github.com/flike/kingshard/proxy/router"
+	"github.com/flike/kingshard/ripple"
 	"github.com/flike/kingshard/sqlparser"
 )
 
@@ -180,6 +181,17 @@ func (c *ClientConn) GetExecDB(tokens []string, sql string) (*ExecuteDB, error) 
 				return nil, nil // ripple
 			case mysql.TK_ID_DROP, mysql.TK_ID_RENAME, mysql.TK_ID_ALTER:
 				return nil, nil // ripple
+			case mysql.TK_ID_DESC:
+				// get nameInDB
+				var use_account string
+				if c.current_use == nil {
+					use_account = c.proxy.cfg.Account
+				} else {
+					use_account = c.current_use.Account
+				}
+				if nameInDB, err := ripple.GetNameInDB(tokens[1], use_account, c.ws_conn); err == nil {
+					sql = "desc " + string(nameInDB)
+				}
 			case mysql.TK_ID_SET:
 				return c.getSetExecDB(sql, tokens, tokensLen)
 			case mysql.TK_ID_SHOW:

@@ -179,7 +179,7 @@ func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byt
 		golog.Error("ripple", "GetNameInDB", err.Error(), 0)
 		return nil, err
 	}
-	//golog.Info("ripple", "GetNameInDB:request", string(request), 0)
+	golog.Info("ripple", "GetNameInDB:request", string(request), 0)
 
 	_, response, err := ws_conn.ReadMessage()
 
@@ -188,14 +188,14 @@ func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byt
 		return nil, err
 	}
 
-	//golog.Info("ripple", "GetNameInDB:response", string(response), 0)
+	golog.Info("ripple", "GetNameInDB:response", string(response), 0)
 	var result RippleResponse
 	if err := json.Unmarshal(response, &result); err != nil {
 		golog.Error("ripple", "GetNameInDB", err.Error(), 0)
 		return nil, err
 	}
 	if result.Result["engine_result"] == "tesSUCCESS" || result.Status == "success" {
-		return []byte(result.Result["nameInDB"].(string)), nil
+		return []byte("t_" + result.Result["nameInDB"].(string)), nil
 	} else {
 		return nil, fmt.Errorf("%s", string(response))
 	}

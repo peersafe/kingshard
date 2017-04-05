@@ -1,11 +1,14 @@
 //line ./sqlparser/sql.y:20
 package sqlparser
 
-import __yyfmt__ "fmt"
+import (
+	"bytes"
+	__yyfmt__ "fmt"
+
+	//"github.com/flike/kingshard/proxy/server"
+)
 
 //line ./sqlparser/sql.y:20
-import "bytes"
-
 func SetParseTree(yylex interface{}, stmt Statement) {
 	yylex.(*Tokenizer).ParseTree = stmt
 }
@@ -589,6 +592,7 @@ var (
 type yyLexer interface {
 	Lex(lval *yySymType) int
 	Error(s string)
+	ConvertToNameId(name string) ([]byte, error) // for ChainSQL
 }
 
 type yyParser interface {
@@ -1370,13 +1374,23 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 		//line ./sqlparser/sql.y:580
 		{
-			yyVAL.smTableExpr = &TableName{Name: yyDollar[1].bytes}
+			if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
+				yyVAL.smTableExpr = &TableName{Name: yyDollar[1].bytes}
+			} else {
+				yyVAL.smTableExpr = &TableName{Name: nameInDB}
+			}
+
 		}
 	case 89:
 		yyDollar = yyS[yypt-3 : yypt+1]
 		//line ./sqlparser/sql.y:584
 		{
-			yyVAL.smTableExpr = &TableName{Qualifier: yyDollar[1].bytes, Name: yyDollar[3].bytes}
+			if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
+				yyVAL.smTableExpr = &TableName{Qualifier: yyDollar[1].bytes, Name: yyDollar[3].bytes}
+			} else {
+				yyVAL.smTableExpr = &TableName{Qualifier: yyDollar[1].bytes, Name: nameInDB}
+			}
+
 		}
 	case 90:
 		yyDollar = yyS[yypt-1 : yypt+1]
@@ -1388,13 +1402,25 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 		//line ./sqlparser/sql.y:594
 		{
+			// this's for admin command
 			yyVAL.tableName = &TableName{Name: yyDollar[1].bytes}
+			/*
+				if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
+					yyVAL.tableName = &TableName{Name: yyDollar[1].bytes}
+				} else {
+					yyVAL.tableName = &TableName{Name: nameInDB}
+				}
+			*/
 		}
 	case 92:
 		yyDollar = yyS[yypt-3 : yypt+1]
 		//line ./sqlparser/sql.y:598
 		{
-			yyVAL.tableName = &TableName{Qualifier: yyDollar[1].bytes, Name: yyDollar[3].bytes}
+			if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
+				yyVAL.tableName = &TableName{Qualifier: yyDollar[1].bytes, Name: yyDollar[3].bytes}
+			} else {
+				yyVAL.tableName = &TableName{Qualifier: yyDollar[1].bytes, Name: nameInDB}
+			}
 		}
 	case 93:
 		yyDollar = yyS[yypt-0 : yypt+1]
