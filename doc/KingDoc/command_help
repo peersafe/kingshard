@@ -19,6 +19,8 @@ admin server(opt,k,v) values('change','log_sql','off')|close the log output
 admin server(opt,k,v) values('change','log_sql','on')|open the log output
 admin server(opt,k,v) values('change','slow_log_time','50')|set the slow_log_time
 admin server(opt,k,v) values('save','proxy','config')|save the kingshard config into 'ks.yaml'
-admin chainsql(opt,k,v) values('as','address','secret')|provide operator's account and secret
-admin chainsql(opt,k,v) values('use','address,'address')|switch owner who owns tables
+admin chainsql(opt,k,v,a) values('as','address','secret','')|provide operator's account and secret
+admin chainsql(opt,k,v,a) values('use','address,'','')|switch owner who owns tables
+admin chainsql(opt,k,v,a) values('assign','user','tablename','select|insert|update|delelte|execute')|assign authorization of tablename to user
+admin chainsql(opt,k,v,a) values('cancelassgin','user','tablename'，'select|insert|update|delelte|execute')|cancel user's authorization of tablename
 admin help|show the admin command of kingshard

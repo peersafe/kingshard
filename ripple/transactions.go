@@ -265,6 +265,10 @@ func (tx *Transaction) Owner() (string, bool) {
 	return "", false
 }
 
+func (tx *Transaction) SetUser(user string) bool {
+	return tx.AddFieldToTxJson("User", user)
+}
+
 func (tx *Transaction) SetOpType(opType int) bool {
 	return tx.AddFieldToTxJson("OpType", opType)
 }
@@ -279,10 +283,6 @@ func (tx *Transaction) SetConfidential(confidential bool) bool {
 
 func (tx *Transaction) SetStrictMode(strictMode bool) bool {
 	return tx.AddFieldToTxJson("StrictMode", strictMode)
-}
-
-func (tx *Transaction) SetUser(user string) bool {
-	return tx.AddFieldToTxJson("User", user)
 }
 
 func (tx *Transaction) SetPublicKey(key string) bool {
@@ -436,6 +436,12 @@ func (tx *Transaction) makeTxJsonValue() (map[string]interface{}, error) {
 	if ok {
 		tx_json["Owner"] = owner
 	}
+
+	user, ok := tx.FieldValue("User")
+	if ok {
+		tx_json["User"] = user
+	}
+
 	confidential, ok := tx.FieldValue("Confidential")
 	if ok {
 		tx_json["Confidential"] = confidential

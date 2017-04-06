@@ -29,6 +29,8 @@ import (
 	"github.com/flike/kingshard/sqlparser"
 )
 
+var ChainSQLPerm map[string]int = map[string]int{"select": 65536, "insert": 131072, "update": 262144, "delete": 524288, "execute": 1048576}
+
 func AstOp2RippleOp(astOp string) (string, error) {
 	var rippleOp string
 	var err error = nil

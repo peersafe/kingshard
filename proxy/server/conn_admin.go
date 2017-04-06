@@ -27,6 +27,7 @@ import (
 	"github.com/flike/kingshard/core/golog"
 	"github.com/flike/kingshard/core/hack"
 	"github.com/flike/kingshard/mysql"
+	"github.com/flike/kingshard/ripple"
 	"github.com/flike/kingshard/sqlparser"
 )
 
@@ -39,15 +40,17 @@ const (
 	ChainSQLRegion = "chainsql"
 
 	//op
-	ADMIN_OPT_ADD     = "add"
-	ADMIN_OPT_DEL     = "del"
-	ADMIN_OPT_UP      = "up"
-	ADMIN_OPT_DOWN    = "down"
-	ADMIN_OPT_SHOW    = "show"
-	ADMIN_OPT_CHANGE  = "change"
-	ADMIN_OPT_AS      = "as"
-	ADMIN_OPT_USE     = "use"
-	ADMIN_SAVE_CONFIG = "save"
+	ADMIN_OPT_ADD          = "add"
+	ADMIN_OPT_DEL          = "del"
+	ADMIN_OPT_UP           = "up"
+	ADMIN_OPT_DOWN         = "down"
+	ADMIN_OPT_SHOW         = "show"
+	ADMIN_OPT_CHANGE       = "change"
+	ADMIN_OPT_AS           = "as"
+	ADMIN_OPT_USE          = "use"
+	ADMIN_OPT_ASSING       = "assign"
+	ADMIN_OPT_CANCELASSING = "cancelassgin"
+	ADMIN_SAVE_CONFIG      = "save"
 
 	ADMIN_PROXY         = "proxy"
 	ADMIN_NODE          = "node"
@@ -63,6 +66,7 @@ const (
 
 var cmdServerOrder = []string{"opt", "k", "v"}
 var cmdNodeOrder = []string{"opt", "node", "k", "v"}
+var cmdChainSQLAssignOrder = []string{"opt", "k", "v", "a"}
 
 func (c *ClientConn) handleNodeCmd(rows sqlparser.InsertRows) error {
 	var err error
@@ -156,12 +160,70 @@ func (c *ClientConn) handleServerCmd(rows sqlparser.InsertRows) (*mysql.Resultse
 		err = c.handleAdminAdd(k, v)
 	case ADMIN_OPT_DEL:
 		err = c.handleAdminDelete(k, v)
+	case ADMIN_SAVE_CONFIG:
+		err = c.handleAdminSave(k, v)
+	default:
+		err = errors.ErrCmdUnsupport
+		golog.Error("ClientConn", "handleNodeCmd", err.Error(),
+			c.connectionId, "opt", opt)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Resultset, error) {
+	var err error
+	var result *mysql.Resultset
+	var opt, k, v, f string
+	var flags int
+	vals := rows.(sqlparser.Values)
+	if len(vals) == 0 {
+		return nil, errors.ErrCmdUnsupport
+	}
+
+	tuple := vals[0].(sqlparser.ValTuple)
+	if len(tuple) != len(cmdChainSQLAssignOrder) {
+		return nil, errors.ErrCmdUnsupport
+	}
+
+	opt = sqlparser.String(tuple[0])
+	opt = strings.Trim(opt, "'")
+
+	k = sqlparser.String(tuple[1])
+	k = strings.Trim(k, "'")
+
+	v = sqlparser.String(tuple[2])
+	v = strings.Trim(v, "'")
+
+	f = sqlparser.String(tuple[3]) // flags for assign and cancelassign
+	f = strings.Trim(f, "'")
+
+	if len(f) > 0 {
+		// f matchs pattern of select|insert|update|delete|execute
+		sep := func(r rune) bool {
+			return r == '|' || r == ','
+		}
+		tokens := strings.FieldsFunc(f, sep)
+		for _, token := range tokens {
+			perm, ok := ripple.ChainSQLPerm[strings.ToLower(token)]
+			if ok {
+				flags |= perm
+			}
+		}
+	}
+
+	switch strings.ToLower(opt) {
 	case ADMIN_OPT_AS:
 		err = c.handleAdminChainSQLAs(k, v)
 	case ADMIN_OPT_USE:
 		err = c.handleAdminChainSQLUse(k)
-	case ADMIN_SAVE_CONFIG:
-		err = c.handleAdminSave(k, v)
+	case ADMIN_OPT_ASSING:
+		err = c.handleAdminChainSQLAssign(k, v, flags)
+	case ADMIN_OPT_CANCELASSING:
+		err = c.handleAdminChainSQLCancelAssign(k, v, flags)
 	default:
 		err = errors.ErrCmdUnsupport
 		golog.Error("ClientConn", "handleNodeCmd", err.Error(),
@@ -220,8 +282,10 @@ func (c *ClientConn) checkCmdOrder(region string, columns sqlparser.Columns) err
 	switch region {
 	case NodeRegion:
 		cmdOrder = cmdNodeOrder
-	case ServerRegion, ChainSQLRegion:
+	case ServerRegion:
 		cmdOrder = cmdServerOrder
+	case ChainSQLRegion:
+		cmdOrder = cmdChainSQLAssignOrder
 	default:
 		return errors.ErrCmdUnsupport
 	}
@@ -306,8 +370,10 @@ func (c *ClientConn) handleAdmin(admin *sqlparser.Admin) error {
 	switch strings.ToLower(region) {
 	case NodeRegion:
 		err = c.handleNodeCmd(admin.Rows)
-	case ServerRegion, ChainSQLRegion:
+	case ServerRegion:
 		result, err = c.handleServerCmd(admin.Rows)
+	case ChainSQLRegion:
+		result, err = c.handleChainSQLCmd(admin.Rows)
 	default:
 		return fmt.Errorf("admin %s not supported now", region)
 	}
@@ -427,6 +493,68 @@ func (c *ClientConn) handleAdminChainSQLUse(k string) error {
 	}
 	c.current_use.Account = k
 	return nil
+}
+
+func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, flag int, assign bool) error {
+	var as_account string
+	var as_secret string
+
+	if c.current_as == nil {
+		as_account = c.proxy.cfg.Account
+		as_secret = c.proxy.cfg.Secret
+	} else {
+		as_account = c.current_as.Account
+		as_secret = c.current_as.Secret
+	}
+	if len(as_account) == 0 || len(as_secret) == 0 {
+		return fmt.Errorf("Please use admin's commad provide opretor's account and secret")
+	}
+
+	// get nameInDB
+	var use_account string
+	if c.current_use == nil {
+		use_account = c.proxy.cfg.Account
+	} else {
+		use_account = c.current_use.Account
+	}
+	if len(use_account) == 0 {
+		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
+	}
+	nameInDB, err := ripple.GetNameInDB(tableName, use_account, c.ws_conn)
+	if err != nil {
+		return err
+	}
+
+	tx := ripple.NewTransaction()
+	tx.SetAccount(as_account)
+	tx.SetSecret(as_secret)
+	// add tableEntry
+	tableEntry := ripple.NewTableEntry()
+	tableEntry.AddTableName(tableName, true)
+	tableEntry.AddNameInDB(string(nameInDB))
+	tx.AddTableEntry(tableEntry)
+
+	tx.SetUser(user)
+	if flag > 0 {
+		tx.SetFlags(flag)
+	}
+
+	if assign {
+		tx.SetOpType(ripple.OpType_Assign)
+	} else {
+		tx.SetOpType(ripple.OpType_CancelAssign)
+	}
+
+	tx.SetTransactionType(ripple.TxType_TableListSet)
+	return tx.SimpleWriteToChainSQL(c.ws_conn)
+}
+
+func (c *ClientConn) handleAdminChainSQLAssign(user, tableName string, flag int) error {
+	return handleChainSQLAssignAuthorization(c, user, tableName, flag, true)
+}
+
+func (c *ClientConn) handleAdminChainSQLCancelAssign(user, tableName string, flag int) error {
+	return handleChainSQLAssignAuthorization(c, user, tableName, flag, false)
 }
 
 func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {

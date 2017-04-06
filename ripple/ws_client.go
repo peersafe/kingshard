@@ -95,34 +95,6 @@ func (tx *Transaction) WriteToChainSQL(ws_conn *websocket.Conn) error {
 	return nil
 }
 
-func PreBuild(tx *Transaction, ws_conn *websocket.Conn) bool {
-	// fill with NameInDB
-	for _, tableEntry := range tx.Tables {
-		if tableEntry.isExist("NameInDB") {
-			continue
-		}
-		var tableName, ower string
-		var ok bool
-		if tableName, ok = tableEntry.TableName(); ok == false {
-			continue
-		}
-
-		if ower, ok = tx.Owner(); ok == false {
-			continue
-		}
-
-		var nameInDB []byte
-		var err error
-		if nameInDB, err = GetNameInDB(tableName, ower, ws_conn); err != nil {
-			golog.Error("ripple", "PreBuild", err.Error(), 0)
-			return false
-		}
-
-		tableEntry.AddNameInDB(string(nameInDB))
-	}
-	return true
-}
-
 func (tx *Transaction) SimpleWriteToChainSQL(ws_conn *websocket.Conn) error {
 	// send request
 	request, err := tx.BuildWSRequest()
