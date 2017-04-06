@@ -48,8 +48,8 @@ const (
 	ADMIN_OPT_CHANGE       = "change"
 	ADMIN_OPT_AS           = "as"
 	ADMIN_OPT_USE          = "use"
-	ADMIN_OPT_ASSING       = "assign"
-	ADMIN_OPT_CANCELASSING = "cancelassgin"
+	ADMIN_OPT_ASSIGN       = "assign"
+	ADMIN_OPT_CANCELASSIGN = "cancelassign"
 	ADMIN_SAVE_CONFIG      = "save"
 
 	ADMIN_PROXY         = "proxy"
@@ -220,9 +220,9 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 		err = c.handleAdminChainSQLAs(k, v)
 	case ADMIN_OPT_USE:
 		err = c.handleAdminChainSQLUse(k)
-	case ADMIN_OPT_ASSING:
+	case ADMIN_OPT_ASSIGN:
 		err = c.handleAdminChainSQLAssign(k, v, flags)
-	case ADMIN_OPT_CANCELASSING:
+	case ADMIN_OPT_CANCELASSIGN:
 		err = c.handleAdminChainSQLCancelAssign(k, v, flags)
 	default:
 		err = errors.ErrCmdUnsupport

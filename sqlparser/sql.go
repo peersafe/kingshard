@@ -1377,7 +1377,7 @@ yydefault:
 			if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
 				yyVAL.smTableExpr = &TableName{Name: yyDollar[1].bytes}
 			} else {
-				yyVAL.smTableExpr = &TableName{Name: nameInDB}
+				yyVAL.smTableExpr = &TableName{Name: []byte("t_" + string(nameInDB))}
 			}
 
 		}
@@ -1388,7 +1388,7 @@ yydefault:
 			if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
 				yyVAL.smTableExpr = &TableName{Qualifier: yyDollar[1].bytes, Name: yyDollar[3].bytes}
 			} else {
-				yyVAL.smTableExpr = &TableName{Qualifier: yyDollar[1].bytes, Name: nameInDB}
+				yyVAL.smTableExpr = &TableName{Qualifier: yyDollar[1].bytes, Name: []byte("t_" + string(nameInDB))}
 			}
 
 		}
@@ -1408,7 +1408,7 @@ yydefault:
 				if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
 					yyVAL.tableName = &TableName{Name: yyDollar[1].bytes}
 				} else {
-					yyVAL.tableName = &TableName{Name: nameInDB}
+					yyVAL.tableName = &TableName{Name: []byte("t_" + string(nameInDB))}
 				}
 			*/
 		}
@@ -1419,7 +1419,7 @@ yydefault:
 			if nameInDB, err := yylex.ConvertToNameId(string(yyDollar[1].bytes)); err != nil {
 				yyVAL.tableName = &TableName{Qualifier: yyDollar[1].bytes, Name: yyDollar[3].bytes}
 			} else {
-				yyVAL.tableName = &TableName{Qualifier: yyDollar[1].bytes, Name: nameInDB}
+				yyVAL.tableName = &TableName{Qualifier: yyDollar[1].bytes, Name: []byte("t_" + string(nameInDB))}
 			}
 		}
 	case 93:

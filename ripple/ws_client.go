@@ -167,7 +167,7 @@ func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byt
 		return nil, err
 	}
 	if result.Result["engine_result"] == "tesSUCCESS" || result.Status == "success" {
-		return []byte("t_" + result.Result["nameInDB"].(string)), nil
+		return []byte(result.Result["nameInDB"].(string)), nil
 	} else {
 		return nil, fmt.Errorf("%s", string(response))
 	}

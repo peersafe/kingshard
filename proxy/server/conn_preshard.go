@@ -190,7 +190,7 @@ func (c *ClientConn) GetExecDB(tokens []string, sql string) (*ExecuteDB, error) 
 					use_account = c.current_use.Account
 				}
 				if nameInDB, err := ripple.GetNameInDB(tokens[1], use_account, c.ws_conn); err == nil {
-					sql = "desc " + string(nameInDB)
+					sql = "desc t_" + string(nameInDB)
 				}
 			case mysql.TK_ID_SET:
 				return c.getSetExecDB(sql, tokens, tokensLen)
