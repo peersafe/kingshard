@@ -149,11 +149,12 @@ func TestAst2Tx(t *testing.T) {
 }
 
 func TestGetTableName(t *testing.T) {
-	addr := flag.String("addr", "192.168.0.155:6006", "http service address")
+	return
+	addr := flag.String("addr", "192.168.0.151:6006", "http service address")
 	flag.Parse()
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/"}
 	ws_client, _, _ := websocket.DefaultDialer.Dial(u.String(), nil)
-	tableName := "deparment"
+	tableName := "ffff"
 	nameInDB, err := GetNameInDB(tableName, "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", ws_client)
 	if err != nil {
 		t.Fatal(err.Error())

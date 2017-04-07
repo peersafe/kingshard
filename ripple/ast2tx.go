@@ -470,9 +470,3 @@ func Ast2Tx(stmt *sqlparser.Statement, tx *Transaction) error {
 	}
 	return errors.New("Not implement Ast2Tx")
 }
-
-type RippleResponse struct {
-	Result map[string]interface{}
-	Status string
-	Type   string
-}

@@ -50,6 +50,8 @@ const (
 	ADMIN_OPT_USE          = "use"
 	ADMIN_OPT_ASSIGN       = "assign"
 	ADMIN_OPT_CANCELASSIGN = "cancelassign"
+	ADMIN_OPT_SUBSCRIBE    = "subscribe"
+	ADMIN_OPT_UNSUBSCRIBE  = "unsubscribe"
 	ADMIN_SAVE_CONFIG      = "save"
 
 	ADMIN_PROXY         = "proxy"
@@ -198,19 +200,21 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 	v = sqlparser.String(tuple[2])
 	v = strings.Trim(v, "'")
 
-	f = sqlparser.String(tuple[3]) // flags for assign and cancelassign
+	f = sqlparser.String(tuple[3]) // flags for assign and cancelassign, or subscribe
 	f = strings.Trim(f, "'")
 
-	if len(f) > 0 {
-		// f matchs pattern of select|insert|update|delete|execute
-		sep := func(r rune) bool {
-			return r == '|' || r == ','
-		}
-		tokens := strings.FieldsFunc(f, sep)
-		for _, token := range tokens {
-			perm, ok := ripple.ChainSQLPerm[strings.ToLower(token)]
-			if ok {
-				flags |= perm
+	if strings.ToLower(opt) != ADMIN_OPT_SUBSCRIBE && strings.ToLower(opt) != ADMIN_OPT_UNSUBSCRIBE {
+		if len(f) > 0 {
+			// f matchs pattern of select|insert|update|delete|execute
+			sep := func(r rune) bool {
+				return r == '|' || r == ','
+			}
+			tokens := strings.FieldsFunc(f, sep)
+			for _, token := range tokens {
+				perm, ok := ripple.ChainSQLPerm[strings.ToLower(token)]
+				if ok {
+					flags |= perm
+				}
 			}
 		}
 	}
@@ -224,6 +228,10 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 		err = c.handleAdminChainSQLAssign(k, v, flags)
 	case ADMIN_OPT_CANCELASSIGN:
 		err = c.handleAdminChainSQLCancelAssign(k, v, flags)
+	case ADMIN_OPT_SUBSCRIBE:
+		err = c.handleAdminChainSQLSubscribe(k, v, f, true)
+	case ADMIN_OPT_UNSUBSCRIBE:
+		err = c.handleAdminChainSQLSubscribe(k, v, f, false)
 	default:
 		err = errors.ErrCmdUnsupport
 		golog.Error("ClientConn", "handleNodeCmd", err.Error(),
@@ -555,6 +563,24 @@ func (c *ClientConn) handleAdminChainSQLAssign(user, tableName string, flag int)
 
 func (c *ClientConn) handleAdminChainSQLCancelAssign(user, tableName string, flag int) error {
 	return handleChainSQLAssignAuthorization(c, user, tableName, flag, false)
+}
+
+func (c *ClientConn) handleAdminChainSQLSubscribe(owner, tableName, subType string, subScribe bool) error {
+	if subType == ripple.SubScribeType_table {
+		c.subsriber = ripple.NewSubScriber(c.proxy.cfg)
+		if subScribe {
+			err := c.subsriber.Start(owner, tableName, ripple.OnSubscribeEvent)
+			if err != nil {
+				return err
+			} else {
+				return nil
+			}
+		} else {
+			c.subsriber.Stop()
+			return nil
+		}
+	}
+	return fmt.Errorf("Not support %s of (un)subscribe's type.", subType)
 }
 
 func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {

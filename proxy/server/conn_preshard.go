@@ -446,7 +446,7 @@ func (c *ClientConn) getShowExecDB(sql string, tokens []string, tokensLen int) (
 	executeDB := new(ExecuteDB)
 	executeDB.IsSlave = true
 	if c.current_use != nil && len(c.current_use.Account) != 0 {
-		executeDB.sql = "select tablename,TableNameInDB from synctablestate where Owner = '" + c.current_use.Account + "'"
+		executeDB.sql = "select tablename,TableNameInDB from synctablestate where Owner = '" + c.current_use.Account + "' and deleted = 0"
 	} else {
 		executeDB.sql = sql
 	}

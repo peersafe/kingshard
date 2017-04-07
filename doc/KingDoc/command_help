@@ -23,4 +23,6 @@ admin chainsql(opt,k,v,a) values('as','address','secret','')|provide operator's 
 admin chainsql(opt,k,v,a) values('use','address,'','')|switch owner who owns tables
 admin chainsql(opt,k,v,a) values('assign','user','tablename','select|insert|update|delelte|execute')|assign authorization of tablename to user
 admin chainsql(opt,k,v,a) values('cancelassign','user','tablename'，'select|insert|update|delelte|execute')|cancel user's authorization of tablename
+admin chainsql(opt,k,v,a) values('subscribe','address,'tablename','table')|subscribe event of table
+admin chainsql(opt,k,v,a) values('unsubscribe','address,'tablename','table')|unsubscribe event of table
 admin help|show the admin command of kingshard

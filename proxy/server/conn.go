@@ -26,6 +26,7 @@ import (
 	"github.com/flike/kingshard/core/golog"
 	"github.com/flike/kingshard/core/hack"
 	"github.com/flike/kingshard/mysql"
+	"github.com/flike/kingshard/ripple"
 	"github.com/gorilla/websocket"
 )
 
@@ -46,6 +47,7 @@ type ClientConn struct {
 
 	c net.Conn
 	// chainsql
+	subsriber   *ripple.SubScriber
 	ws_conn     *websocket.Conn // websocket
 	current_as  *ChainSQLAS_Privilege
 	current_use *ChainSQLUse_Privilege
