@@ -453,16 +453,16 @@ func (c *ClientConn) handleDDL(ddl *sqlparser.DDL) error {
 	if len(use_account) == 0 {
 		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
 	}
-	nameInDB, err := ripple.GetNameInDB(string(ddl.Table), use_account, c.ws_conn)
-	if err != nil {
+	//nameInDB, err := ripple.GetNameInDB(string(ddl.Table), use_account, c.ws_conn)
+	//if err != nil {
+	//	return err
+	//}
+
+	if err := ripple.HandleDDL(ddl, tx, nil); err != nil {
 		return err
 	}
 
-	if err := ripple.HandleDDL(ddl, tx, nameInDB); err != nil {
-		return err
-	}
-
-	if err := tx.SimpleWriteToChainSQL(c.ws_conn); err != nil {
+	if err := tx.WriteToChainSQL(c.ws_conn); err != nil {
 		return err
 	}
 

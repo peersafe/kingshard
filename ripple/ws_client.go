@@ -57,7 +57,7 @@ func PushMessage(ws *websocket.Conn, data []byte) ([]byte, error) {
 			recvError <- err
 			return
 		}
-		fmt.Printf("PushMessage <- : %s\n", string(response))
+		//fmt.Printf("PushMessage <- : %s\n", string(response))
 		recvData <- response
 	}()
 
@@ -67,7 +67,7 @@ func PushMessage(ws *websocket.Conn, data []byte) ([]byte, error) {
 	for {
 		select {
 		case <-prepare:
-			fmt.Printf("PushMessage -> : %s\n", string(data))
+			//fmt.Printf("PushMessage -> : %s\n", string(data))
 			if err := ws.WriteMessage(websocket.TextMessage, data); err != nil {
 				golog.Error("ripple", "WriteMessage", string(data), 0)
 				return nil, err
@@ -173,32 +173,6 @@ func (tx *Transaction) WriteToChainSQL(ws_conn *websocket.Conn) error {
 		return err
 	}
 	return writeWSRequestToChainSQL(tx, response, ws_conn)
-}
-
-func (tx *Transaction) SimpleWriteToChainSQL(ws_conn *websocket.Conn) error {
-	// send request
-	request, err := tx.BuildWSRequest()
-	if err != nil {
-		golog.Error("ripple", "SimpleWriteToChainSQL", err.Error(), 0)
-		return err
-	}
-	golog.Info("ripple", "SimpleWriteToChainSQL:request", string(request), 0)
-	response, err := PushMessage(ws_conn, request)
-	if err != nil {
-		return err
-	}
-	golog.Info("ripple", "SimpleWriteToChainSQL:response", string(response), 0)
-	var result RippleResponse
-	if err := json.Unmarshal(response, &result); err != nil {
-		golog.Error("ripple", "SimpleWriteToChainSQL", err.Error(), 0)
-		return err
-	}
-
-	ok, err := result.isSuccess()
-	if ok == false {
-		return err
-	}
-	return nil
 }
 
 func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byte, error) {

@@ -528,10 +528,10 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 	if len(use_account) == 0 {
 		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
 	}
-	nameInDB, err := ripple.GetNameInDB(tableName, use_account, c.ws_conn)
-	if err != nil {
-		return err
-	}
+	//nameInDB, err := ripple.GetNameInDB(tableName, use_account, c.ws_conn)
+	//if err != nil {
+	//	return err
+	//}
 
 	tx := ripple.NewTransaction()
 	tx.SetAccount(as_account)
@@ -539,7 +539,7 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 	// add tableEntry
 	tableEntry := ripple.NewTableEntry()
 	tableEntry.AddTableName(tableName, true)
-	tableEntry.AddNameInDB(string(nameInDB))
+	//tableEntry.AddNameInDB(string(nameInDB))
 	tx.AddTableEntry(tableEntry)
 
 	tx.SetUser(user)
@@ -554,7 +554,7 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 	}
 
 	tx.SetTransactionType(ripple.TxType_TableListSet)
-	return tx.SimpleWriteToChainSQL(c.ws_conn)
+	return tx.WriteToChainSQL(c.ws_conn)
 }
 
 func (c *ClientConn) handleAdminChainSQLAssign(user, tableName string, flag int) error {
