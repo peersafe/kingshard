@@ -232,36 +232,7 @@ func (event *ChainSQLEvent) wait(seconds time.Duration) error {
 }
 
 func (event *ChainSQLEvent) SubscribeTable(owner, tableName string) error {
-	cmd := NewSubscribeCmd()
-	cmd.SetOwner(owner)
-	cmd.SetTableName(tableName)
-	cmd.SetCommand("Subscribe")
-	request, err := BuildCmd(cmd, SubScribeType_transaction)
-	if err != nil {
-		golog.Error("ripple", "SyncWaitTxResult", "Build Subscribe failure on transaction", 0)
-		return err
-	}
-
-	if err := event.sendScribleRequest(request); err != nil {
-		golog.Error("ripple", "SyncWaitTxResult", "subscribe ("+owner+","+tableName+") failure. "+err.Error(), 0)
-		return err
-	}
-
-	go func() {
-		for {
-			_, msg, err := event.WsClient.ReadMessage()
-			if err != nil {
-				golog.Error("ripple", "SubscribeTable", err.Error(), 0)
-				return
-			} else {
-				if event.OnEvnet != nil {
-					event.OnEvnet(msg)
-				}
-			}
-		}
-	}()
-
-	return nil
+	return fmt.Errorf("SubscribeTable dosen't be implemented.")
 }
 
 func (event *ChainSQLEvent) SyncWaitTxResult(txId string, seconds time.Duration) error {

@@ -572,8 +572,7 @@ func (c *ClientConn) OnChainSQLEvent(msg []byte) {
 
 func (c *ClientConn) handleAdminChainSQLSubscribe(owner, tableName, subType string, subScribe bool) error {
 	chainsqlEvent := ripple.NewChainSQLEvent(c.ws_conn, c.OnChainSQLEvent)
-	chainsqlEvent.SubscribeTable(owner, tableName)
-	return nil
+	return chainsqlEvent.SubscribeTable(owner, tableName)
 }
 
 func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {
