@@ -21,9 +21,8 @@ package ripple
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
+	"time"
 
-	"github.com/flike/kingshard/config"
 	"github.com/flike/kingshard/core/golog"
 	"github.com/gorilla/websocket"
 )
@@ -34,6 +33,13 @@ const (
 
 	SubScribeType_table       = "table"
 	SubScribeType_transaction = "transaction"
+
+	SubcribeResult_VALIDATE_SUCCESS = "validate_success"
+	SubcribeResult_VALIDATE_TIMEOUT = "validate_timeout"
+
+	SubcribeResult_DB_SUCCESS = "db_success"
+	SubcribeResult_DB_ERROR   = "db_error"
+	SubcribeResult_DB_TIMEOUT = "db_timeout"
 )
 
 type SubscribeResponse struct {
@@ -125,95 +131,173 @@ func BuildCmd(cmd *SubscribeCmd, subType string) ([]byte, error) {
 	return nil, fmt.Errorf("Not support subType.[%s]", subType)
 }
 
-///////////////////////////////////////
-type SubscribeCallBack func(response *SubscribeResponse)
+type SubscribeCallBack func(msg []byte)
 
-type SubScriber struct {
-	cfg     *config.Config
-	ws_conn *websocket.Conn
-	cmd     *SubscribeCmd
-	stop    bool
-	OnEvnet SubscribeCallBack
+type ChainSQLEvent struct {
+	WsClient  *websocket.Conn
+	OnEvnet   SubscribeCallBack
+	Completed string
+	stop      bool
 }
 
-func NewSubScriber(cfg *config.Config) *SubScriber {
-	s := SubScriber{cfg: cfg, stop: false}
-	s.cmd = NewSubscribeCmd()
-	return &s
+func NewChainSQLEvent(ws_conn *websocket.Conn, cb SubscribeCallBack) *ChainSQLEvent {
+	return &ChainSQLEvent{WsClient: ws_conn, OnEvnet: cb, stop: false}
 }
 
-func (s *SubScriber) Start(owner, tableName string, cb SubscribeCallBack) error {
-	// init websocket
-	var ok error
-	//subscribeAddr := flag.String("addr", s.cfg.WSAddr, "http service address")
-	//flag.Parse()
-	u := url.URL{Scheme: "ws", Host: s.cfg.WSAddr, Path: "/"}
-	s.ws_conn, _, ok = websocket.DefaultDialer.Dial(u.String(), nil)
-	if ok != nil {
-		return ok
-	}
-	s.OnEvnet = cb
-
-	s.cmd = NewSubscribeCmd()
-	s.cmd.SetCommand("subscribe")
-	s.cmd.SetOwner(owner)
-	s.cmd.SetTableName(tableName)
-	cmd, err := BuildCmd(s.cmd, SubScribeType_table)
+func (event *ChainSQLEvent) sendScribleRequest(request []byte) error {
+	golog.Info("ripple", "SyncWaitTxResult", "subscribe:"+string(request), 0)
+	response, err := PushMessage(event.WsClient, request)
 	if err != nil {
+		//golog.Error("ripple", "SyncWaitTxResult", "send request of subscribe unsuccessfully.["+err.Error()+"]", 0)
 		return err
 	}
 
-	if _, err := PushMessage(s.ws_conn, cmd); err != nil {
-		s.ws_conn.Close()
-		s.Stop()
-		golog.Error("ripple", "subscribe.start ->", err.Error(), 0)
+	golog.Info("ripple", "SyncWaitTxResult", "subscribe:"+string(response), 0)
+	var subcribe_response SubscribeResponse
+	ok := json.Unmarshal(response, &subcribe_response)
+	if ok != nil {
+		//golog.Error("ripple", "SyncWaitTxResult", "Unmarshal failure", 0)
+		return ok
+	}
+
+	if subcribe_response.Status != "success" {
+		return fmt.Errorf("Subscribe unsuccessfully")
+	}
+
+	return nil
+}
+
+type waitChannel struct {
+	data []byte
+	err  error
+}
+
+func (event *ChainSQLEvent) wait(seconds time.Duration) error {
+	timeout := make(chan bool, 1)
+	go func() {
+		defer close(timeout)
+		time.Sleep(seconds * time.Second) // wait for 15s
+		if timeout != nil {
+			timeout <- true
+		}
+	}()
+
+	channel := make(chan waitChannel, 1)
+	defer close(channel)
+	go func() {
+		for {
+			_, recieve_data, err := event.WsClient.ReadMessage()
+			var result waitChannel
+			if err != nil {
+				result.data = nil
+				result.err = err
+			} else {
+				result.data = recieve_data
+				result.err = nil
+			}
+			if event.stop {
+				golog.Info("ripple", "SyncWaitTxResult", string(recieve_data), 0)
+				return
+			} else {
+				channel <- result
+			}
+		}
+	}()
+
+	for {
+		select {
+		case result := <-channel:
+			if result.err != nil {
+				return result.err
+			}
+			var response SubscribeResponse
+			err := json.Unmarshal(result.data, &response)
+			if err != nil {
+				golog.Error("ripple", "SyncWaitTxResult", "Unmarshal unsuccessfully.", 0)
+				return err
+			}
+
+			if response.Status == event.Completed {
+				return nil
+			} else if response.Status == SubcribeResult_VALIDATE_TIMEOUT ||
+				response.Status == SubcribeResult_DB_ERROR ||
+				response.Status == SubcribeResult_DB_TIMEOUT {
+				return fmt.Errorf(response.Status)
+			}
+		case <-timeout:
+			return fmt.Errorf("Timeout")
+		}
+	}
+	return nil
+}
+
+func (event *ChainSQLEvent) SubscribeTable(owner, tableName string) error {
+	cmd := NewSubscribeCmd()
+	cmd.SetOwner(owner)
+	cmd.SetTableName(tableName)
+	cmd.SetCommand("Subscribe")
+	request, err := BuildCmd(cmd, SubScribeType_transaction)
+	if err != nil {
+		golog.Error("ripple", "SyncWaitTxResult", "Build Subscribe failure on transaction", 0)
+		return err
+	}
+
+	if err := event.sendScribleRequest(request); err != nil {
+		golog.Error("ripple", "SyncWaitTxResult", "subscribe ("+owner+","+tableName+") failure. "+err.Error(), 0)
 		return err
 	}
 
 	go func() {
-		for s.stop == false {
-			_, data, err := s.ws_conn.ReadMessage()
-			if err == nil {
-				if len(data) > 0 {
-					s.OnChainSQLEvnet(data)
-				}
-			} else {
-				golog.Error("ripple", "subscribe.start <-", err.Error(), 0)
+		for {
+			_, msg, err := event.WsClient.ReadMessage()
+			if err != nil {
+				golog.Error("ripple", "SubscribeTable", err.Error(), 0)
 				return
+			} else {
+				if event.OnEvnet != nil {
+					event.OnEvnet(msg)
+				}
 			}
 		}
-		golog.Info("ripple", "subscribe routine", "subscriber has stopped.", 0)
 	}()
 
 	return nil
 }
 
-func (s *SubScriber) Stop() {
-	s.stop = true
-
-	s.cmd.SetCommand("unsubscribe")
-	cmd, ok := BuildCmd(s.cmd, SubScribeType_table)
-	if ok != nil {
-		return
+func (event *ChainSQLEvent) SyncWaitTxResult(txId string, seconds time.Duration) error {
+	cmd := NewSubscribeCmd()
+	cmd.SetTransaction(txId)
+	cmd.SetCommand(Subscribe)
+	request, err := BuildCmd(cmd, SubScribeType_transaction)
+	if err != nil {
+		golog.Error("ripple", "SyncWaitTxResult", "Build Subscribe failure on transaction", 0)
+		return err
 	}
 
-	if _, err := PushMessage(s.ws_conn, cmd); err != nil {
-		s.ws_conn.Close()
-		s.Stop()
-		golog.Error("ripple", "subscribe.start ->", err.Error(), 0)
+	if err := event.sendScribleRequest(request); err != nil {
+		golog.Error("ripple", "SyncWaitTxResult", "subscribe "+txId+" failure. "+err.Error(), 0)
+		return err
 	}
 
-	s.ws_conn.Close()
+	// wait for result of specified txid
+	ok := event.wait(seconds)
+	// cancel subscribe
+	event.cancelTxSubscribe(txId)
+	return ok
 }
 
-func (s *SubScriber) OnChainSQLEvnet(data []byte) {
-	var result SubscribeResponse
-	err := json.Unmarshal(data, &result)
-	if err != nil {
-		result.Status = "Unmarshal error. [" + err.Error() + "]"
-	}
+func (event *ChainSQLEvent) cancelTxSubscribe(txId string) error {
+	var err error
+	var request []byte
 
-	if s.OnEvnet != nil {
-		s.OnEvnet(&result)
+	cmd := NewSubscribeCmd()
+	cmd.SetTransaction(txId)
+	cmd.SetCommand(Unsubscribe)
+	request, err = BuildCmd(cmd, SubScribeType_transaction)
+	golog.Info("ripple", "cancelTxSubscribe", string(request), 0)
+	if err == nil {
+		event.stop = true
+		err = event.WsClient.WriteMessage(websocket.TextMessage, request)
 	}
+	return err
 }

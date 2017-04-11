@@ -110,6 +110,20 @@ func (result *RippleResponse) isSuccess() (bool, error) {
 	}
 }
 
+func (result *RippleResponse) Hash() []byte {
+	tx_json, ok := result.Result["tx_json"].(map[string]interface{})
+	if ok == false {
+		return nil
+	}
+
+	hash, ok := tx_json["hash"]
+	if ok == false {
+		return nil
+	}
+
+	return []byte(hash.(string))
+}
+
 func writePrepareToChainSQL(tx *Transaction, ws_conn *websocket.Conn) (*RippleResponse, error) {
 	prepare, err := tx.BuildWSPrepare()
 	if err != nil {
@@ -139,40 +153,74 @@ func writePrepareToChainSQL(tx *Transaction, ws_conn *websocket.Conn) (*RippleRe
 	return &prepare_response, nil
 }
 
-func writeWSRequestToChainSQL(tx *Transaction, prepare_response *RippleResponse, ws_conn *websocket.Conn) error {
+// return (hash,nil) if success,otherwise return(nil,error)
+func writeWSRequestToChainSQL(tx *Transaction, prepare_response *RippleResponse, ws_conn *websocket.Conn) ([]byte, error) {
 	// send request
 	request, err := tx.BuildWSRequestByTxJson(prepare_response.Result)
 	if err != nil {
 		golog.Error("ripple", "writeWSRequestToChainSQL", err.Error(), 0)
-		return err
+		return nil, err
 	}
 
 	golog.Info("ripple", "writeWSRequestToChainSQL:request", string(request), 0)
 	response, err := PushMessage(ws_conn, request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	golog.Info("ripple", "writeWSRequestToChainSQL:response", string(response), 0)
 
 	var result RippleResponse
 	if err := json.Unmarshal(response, &result); err != nil {
 		golog.Error("ripple", "writeWSRequestToChainSQL", err.Error(), 0)
-		return err
+		return nil, err
 	}
 
 	ok, err := result.isSuccess()
 	if ok == false {
-		return err
+		return nil, err
 	}
-	return nil
+
+	return result.Hash(), nil
 }
 
-func (tx *Transaction) WriteToChainSQL(ws_conn *websocket.Conn) error {
-	response, err := writePrepareToChainSQL(tx, ws_conn)
+func implWriteToChainSQL(tx *Transaction, ws_conn *websocket.Conn,
+	sync bool, seconds time.Duration, completed string) error {
+
+	var err error
+	var response *RippleResponse
+	var hash []byte
+
+	response, err = writePrepareToChainSQL(tx, ws_conn)
 	if err != nil {
 		return err
 	}
-	return writeWSRequestToChainSQL(tx, response, ws_conn)
+
+	if hash, err = writeWSRequestToChainSQL(tx, response, ws_conn); err != nil {
+		return err
+	}
+
+	if sync {
+		event := NewChainSQLEvent(ws_conn, nil)
+		if len(completed) == 0 {
+			completed = "db_success"
+		}
+		event.Completed = completed
+		if seconds <= 0 {
+			seconds = 15
+		}
+		err = event.SyncWaitTxResult(string(hash), seconds)
+	}
+	return err
+}
+
+func (tx *Transaction) WriteToChainSQL(ws_conn *websocket.Conn) error {
+	return implWriteToChainSQL(tx, ws_conn, false, 0, "")
+}
+
+func (tx *Transaction) SyncWriteToChainSQL(ws_conn *websocket.Conn,
+	seconds time.Duration, completed string) error {
+
+	return implWriteToChainSQL(tx, ws_conn, true, seconds, completed)
 }
 
 func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byte, error) {
@@ -185,10 +233,13 @@ func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byt
 		return nil, err
 	}
 
+	golog.Info("ripple", "GetNameInDB", string(request), 0)
 	response, err := PushMessage(ws_conn, request)
 	if err != nil {
 		return nil, err
 	}
+	golog.Info("ripple", "GetNameInDB", string(response), 0)
+
 	var result RippleResponse
 	if err := json.Unmarshal(response, &result); err != nil {
 		golog.Error("ripple", "GetNameInDB", err.Error(), 0)
@@ -200,9 +251,4 @@ func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byt
 	}
 
 	return nil, fmt.Errorf("%s", string(response))
-}
-
-func OnSubscribeEvent(result *SubscribeResponse) {
-	str := "{owner: " + result.Owner + ", Status: " + result.Status + ", Type: " + result.Type + "}"
-	golog.Info("ripple", "OnDefaultEvent", str, 0)
 }

@@ -31,9 +31,11 @@ type Config struct {
 	WebUser     string `yaml:"web_user"`
 	WebPassword string `yaml:"web_password"`
 
-	WSAddr  string `yaml:"ws_addr"`
-	Secret  string `yaml:secret`
-	Account string `yaml:account`
+	WSAddr       string `yaml:"ws_addr"`
+	Completed    string `yaml:"completed"`
+	Sync_timeout int    `yaml:"sync_timeout"`
+	Secret       string `yaml:secret`
+	Account      string `yaml:account`
 
 	LogPath     string       `yaml:"log_path"`
 	LogLevel    string       `yaml:"log_level"`

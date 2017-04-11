@@ -403,7 +403,8 @@ func (c *ClientConn) exeSQLWriteToChainSQL(stmt sqlparser.Statement) error {
 		return err
 	}
 
-	err = tx.WriteToChainSQL(c.ws_conn)
+	err = tx.SyncWriteToChainSQL(c.ws_conn,
+		time.Duration(c.proxy.cfg.Sync_timeout), c.proxy.cfg.Completed)
 
 	if err == nil {
 		result := &mysql.Result{
@@ -462,7 +463,9 @@ func (c *ClientConn) handleDDL(ddl *sqlparser.DDL) error {
 		return err
 	}
 
-	if err := tx.WriteToChainSQL(c.ws_conn); err != nil {
+	if err := tx.SyncWriteToChainSQL(c.ws_conn,
+		time.Duration(c.proxy.cfg.Sync_timeout),
+		c.proxy.cfg.Completed); err != nil {
 		return err
 	}
 

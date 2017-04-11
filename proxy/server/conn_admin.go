@@ -554,7 +554,8 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 	}
 
 	tx.SetTransactionType(ripple.TxType_TableListSet)
-	return tx.WriteToChainSQL(c.ws_conn)
+	return tx.SyncWriteToChainSQL(c.ws_conn,
+		time.Duration(c.proxy.cfg.Sync_timeout), c.proxy.cfg.Completed)
 }
 
 func (c *ClientConn) handleAdminChainSQLAssign(user, tableName string, flag int) error {
@@ -565,22 +566,14 @@ func (c *ClientConn) handleAdminChainSQLCancelAssign(user, tableName string, fla
 	return handleChainSQLAssignAuthorization(c, user, tableName, flag, false)
 }
 
+func (c *ClientConn) OnChainSQLEvent(msg []byte) {
+	golog.Info("server", "OnChainSQLEvent", string(msg), c.connectionId)
+}
+
 func (c *ClientConn) handleAdminChainSQLSubscribe(owner, tableName, subType string, subScribe bool) error {
-	if subType == ripple.SubScribeType_table {
-		c.subsriber = ripple.NewSubScriber(c.proxy.cfg)
-		if subScribe {
-			err := c.subsriber.Start(owner, tableName, ripple.OnSubscribeEvent)
-			if err != nil {
-				return err
-			} else {
-				return nil
-			}
-		} else {
-			c.subsriber.Stop()
-			return nil
-		}
-	}
-	return fmt.Errorf("Not support %s of (un)subscribe's type.", subType)
+	chainsqlEvent := ripple.NewChainSQLEvent(c.ws_conn, c.OnChainSQLEvent)
+	chainsqlEvent.SubscribeTable(owner, tableName)
+	return nil
 }
 
 func (c *ClientConn) handleShowProxyConfig() (*mysql.Resultset, error) {
