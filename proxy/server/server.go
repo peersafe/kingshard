@@ -16,7 +16,6 @@ package server
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -305,9 +304,7 @@ func (s *Server) newClientConn(co net.Conn) *ClientConn {
 	c.proxy = s
 
 	// init websocket
-	addr := flag.String("addr", s.cfg.WSAddr, "http service address")
-	flag.Parse()
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/"}
+	u := url.URL{Scheme: "ws", Host: s.cfg.WSAddr, Path: "/"}
 	c.ws_conn, _, _ = websocket.DefaultDialer.Dial(u.String(), nil)
 
 	c.pkg.Sequence = 0
