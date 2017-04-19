@@ -611,3 +611,22 @@ func (tx *Transaction) BuildDBNameRequest() ([]byte, error) {
 	}
 	return json, nil
 }
+
+func (tx *Transaction) BuildAccountTablesRequest() ([]byte, error) {
+	if account, ok := tx.FieldValue("Account"); ok {
+		transaction := make(map[string]interface{}, 0)
+		transaction["command"] = "g_accountTables"
+
+		tx_json := make(map[string]interface{}, 0)
+		tx_json["account"] = account
+
+		transaction["tx_json"] = tx_json
+		json, err := json.Marshal(transaction)
+		if err != nil {
+			return nil, err
+		}
+		return json, nil
+	} else {
+		return nil, fmt.Errorf("Account must be specified.")
+	}
+}

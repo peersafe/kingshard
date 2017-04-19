@@ -439,6 +439,36 @@ func (c *ClientConn) getSetExecDB(sql string, tokens []string, tokensLen int) (*
 	return executeDB, nil
 }
 
+func (c *ClientConn) writeChainSQLTableReply(tables *[]ripple.TableReplyEntry) error {
+	var Column = 2
+	var rows [][]string
+	var names []string = []string{"TableName", "NameInDB"}
+
+	for _, tableEntry := range *tables {
+		rows = append(rows,
+			[]string{
+				tableEntry.TableName,
+				tableEntry.NameInDB,
+			},
+		)
+	}
+
+	var values [][]interface{} = make([][]interface{}, len(rows))
+
+	for i := range rows {
+		values[i] = make([]interface{}, Column)
+		for j := range rows[i] {
+			values[i][j] = rows[i][j]
+		}
+	}
+
+	result, err := c.buildResultset(nil, names, values)
+	if err != nil {
+		return err
+	}
+	return c.writeResultset(c.status, result)
+}
+
 //get the execute database for show sql
 //choose slave preferentially
 //tokens[0] is show
@@ -446,7 +476,14 @@ func (c *ClientConn) getShowExecDB(sql string, tokens []string, tokensLen int) (
 	executeDB := new(ExecuteDB)
 	executeDB.IsSlave = true
 	if c.current_use != nil && len(c.current_use.Account) != 0 {
-		executeDB.sql = "select tablename,TableNameInDB from synctablestate where Owner = '" + c.current_use.Account + "' and deleted = 0"
+		if tables, err := ripple.GetAccountTables(c.current_use.Account, c.ws_conn); err == nil {
+			c.writeChainSQLTableReply(tables)
+		} else {
+			executeDB.sql = "select tablename,TableNameInDB from synctablestate where Owner = '" +
+				c.current_use.Account + "' and deleted = 0"
+			//return nil, err
+		}
+
 	} else {
 		executeDB.sql = sql
 	}

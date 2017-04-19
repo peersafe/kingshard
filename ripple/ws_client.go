@@ -34,6 +34,11 @@ type RippleResponse struct {
 	Type   string
 }
 
+type TableReplyEntry struct {
+	NameInDB  string
+	TableName string
+}
+
 // push message into webserver and return response from webserver
 func PushMessage(ws *websocket.Conn, data []byte) ([]byte, error) {
 	timeout := make(chan bool, 1)
@@ -223,6 +228,26 @@ func (tx *Transaction) SyncWriteToChainSQL(ws_conn *websocket.Conn,
 	return implWriteToChainSQL(tx, ws_conn, true, seconds, completed)
 }
 
+func syncWriteToChainSQLWithoutPrepare(request []byte, ws_conn *websocket.Conn) (*RippleResponse, error) {
+
+	//golog.Info("ripple", "syncWriteToChainSQLWithoutPrepare ->", string(request), 0)
+	response, err := PushMessage(ws_conn, request)
+	if err != nil {
+		return nil, err
+	}
+	//golog.Info("ripple", "syncWriteToChainSQLWithoutPrepare <-", string(response), 0)
+
+	var result RippleResponse
+	if err := json.Unmarshal(response, &result); err != nil {
+		return nil, err
+	}
+
+	if ok, _ := result.isSuccess(); ok {
+		return &result, nil
+	}
+	return nil, fmt.Errorf("%s", string(response))
+}
+
 func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byte, error) {
 	tx := NewTransaction()
 	tx.SetAccount(owner)
@@ -232,23 +257,55 @@ func GetNameInDB(tableName string, owner string, ws_conn *websocket.Conn) ([]byt
 	if err != nil {
 		return nil, err
 	}
+	/*
+		golog.Info("ripple", "GetNameInDB", string(request), 0)
+		response, err := PushMessage(ws_conn, request)
+		if err != nil {
+			return nil, err
+		}
+		golog.Info("ripple", "GetNameInDB", string(response), 0)
 
-	golog.Info("ripple", "GetNameInDB", string(request), 0)
-	response, err := PushMessage(ws_conn, request)
+		var result RippleResponse
+		if err := json.Unmarshal(response, &result); err != nil {
+			golog.Error("ripple", "GetNameInDB", err.Error(), 0)
+			return nil, err
+		}
+
+		if ok, _ := result.isSuccess(); ok {
+			return []byte(result.Result["nameInDB"].(string)), nil
+		}
+
+		return nil, fmt.Errorf("%s", string(response))
+	*/
+
+	result, err := syncWriteToChainSQLWithoutPrepare(request, ws_conn)
+	return []byte(result.Result["nameInDB"].(string)), nil
+}
+
+func GetAccountTables(account string, ws_conn *websocket.Conn) (*[]TableReplyEntry, error) {
+	tx := NewTransaction()
+	tx.SetAccount(account)
+
+	request, err := tx.BuildAccountTablesRequest()
 	if err != nil {
 		return nil, err
 	}
-	golog.Info("ripple", "GetNameInDB", string(response), 0)
+	result, err := syncWriteToChainSQLWithoutPrepare(request, ws_conn)
+	size := len(result.Result["tx_json"].([]interface{}))
+	if size > 0 {
+		fmt.Printf("xxxxxxxxxxxxxxxxxx %d\n", size)
+		tables := make([]TableReplyEntry, 0, 32)
+		for _, v := range result.Result["tx_json"].([]interface{}) {
+			switch r := v.(type) {
+			case map[string]interface{}:
+				tableReply := TableReplyEntry{TableName: r["TableName"].(string),
+					NameInDB: "t_" + r["NameInDB"].(string)}
 
-	var result RippleResponse
-	if err := json.Unmarshal(response, &result); err != nil {
-		golog.Error("ripple", "GetNameInDB", err.Error(), 0)
-		return nil, err
+				tables = append(tables, tableReply)
+			}
+
+		}
+		return &tables, nil
 	}
-
-	if ok, _ := result.isSuccess(); ok {
-		return []byte(result.Result["nameInDB"].(string)), nil
-	}
-
-	return nil, fmt.Errorf("%s", string(response))
+	return nil, fmt.Errorf("Tables is empty.")
 }
