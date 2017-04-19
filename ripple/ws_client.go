@@ -293,7 +293,6 @@ func GetAccountTables(account string, ws_conn *websocket.Conn) (*[]TableReplyEnt
 	result, err := syncWriteToChainSQLWithoutPrepare(request, ws_conn)
 	size := len(result.Result["tx_json"].([]interface{}))
 	if size > 0 {
-		fmt.Printf("xxxxxxxxxxxxxxxxxx %d\n", size)
 		tables := make([]TableReplyEntry, 0, 32)
 		for _, v := range result.Result["tx_json"].([]interface{}) {
 			switch r := v.(type) {

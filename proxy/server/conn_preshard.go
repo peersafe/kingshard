@@ -80,9 +80,11 @@ func (c *ClientConn) preHandleShard(sql string) (bool, error) {
 	if err != nil {
 		//this SQL doesn't need execute in the backend.
 		if err == errors.ErrIgnoreSQL {
-			err = c.writeOK(nil)
-			if err != nil {
-				return false, err
+			if tokens[0] != "show" {
+				err = c.writeOK(nil)
+				if err != nil {
+					return false, err
+				}
 			}
 			return true, nil
 		}
@@ -447,8 +449,8 @@ func (c *ClientConn) writeChainSQLTableReply(tables *[]ripple.TableReplyEntry) e
 	for _, tableEntry := range *tables {
 		rows = append(rows,
 			[]string{
-				tableEntry.TableName,
-				tableEntry.NameInDB,
+				strings.TrimSpace(tableEntry.TableName),
+				strings.TrimSpace(tableEntry.NameInDB),
 			},
 		)
 	}
@@ -466,6 +468,7 @@ func (c *ClientConn) writeChainSQLTableReply(tables *[]ripple.TableReplyEntry) e
 	if err != nil {
 		return err
 	}
+
 	return c.writeResultset(c.status, result)
 }
 
@@ -478,10 +481,10 @@ func (c *ClientConn) getShowExecDB(sql string, tokens []string, tokensLen int) (
 	if c.current_use != nil && len(c.current_use.Account) != 0 {
 		if tables, err := ripple.GetAccountTables(c.current_use.Account, c.ws_conn); err == nil {
 			c.writeChainSQLTableReply(tables)
+			return nil, errors.ErrIgnoreSQL
 		} else {
 			executeDB.sql = "select tablename,TableNameInDB from synctablestate where Owner = '" +
 				c.current_use.Account + "' and deleted = 0"
-			//return nil, err
 		}
 
 	} else {
