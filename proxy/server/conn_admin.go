@@ -202,24 +202,6 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 	f = sqlparser.String(tuple[3]) // flags for assign and cancelassign, or subscribe
 	f = strings.Trim(f, "'")
 
-	/*
-		if strings.ToLower(opt) != ADMIN_OPT_SUBSCRIBE && strings.ToLower(opt) != ADMIN_OPT_UNSUBSCRIBE {
-			if len(f) > 0 {
-				// f matchs pattern of select|insert|update|delete|execute
-				sep := func(r rune) bool {
-					return r == '|' || r == ','
-				}
-				tokens := strings.FieldsFunc(f, sep)
-				for _, token := range tokens {
-					perm, ok := ripple.ChainSQLPerm[strings.ToLower(token)]
-					if ok {
-						flags |= perm
-					}
-				}
-			}
-		}
-	*/
-
 	switch strings.ToLower(opt) {
 	case ADMIN_OPT_AS:
 		err = c.handleAdminChainSQLAs(k, v)
