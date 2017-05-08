@@ -378,7 +378,7 @@ func (c *ClientConn) exeSQLWriteToChainSQL(stmt sqlparser.Statement) error {
 		as_secret = c.current_as.Secret
 	}
 	if len(as_account) == 0 || len(as_secret) == 0 {
-		return fmt.Errorf("Please use admin's commad provide opretor's account and secret")
+		return fmt.Errorf("Please use admin's commad provide operator's account and secret")
 	}
 
 	tx.SetAccount(as_account)
@@ -451,7 +451,7 @@ func (c *ClientConn) handleDDL(ddl *sqlparser.DDL) error {
 		as_secret = c.current_as.Secret
 	}
 	if len(as_account) == 0 || len(as_secret) == 0 {
-		return fmt.Errorf("Please use admin's commad provide opretor's account and secret")
+		return fmt.Errorf("Please use admin's commad provide operator's account and secret")
 	}
 	tx.SetAccount(as_account)
 	tx.SetSecret(as_secret)

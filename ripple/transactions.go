@@ -419,7 +419,7 @@ func (tx *Transaction) makeTxJsonValue() (map[string]interface{}, error) {
 		return nil, errors.New("Transaction's OpType must be specified")
 	}
 
-	if len(tx.Raw) == 0 && opType != OpType_Assign && opType != OpType_CancelAssign && opType != OpType_Rename && opType != OpType_DropTable {
+	if len(tx.Raw) == 0 && opType != OpType_Rename && opType != OpType_DropTable {
 		return nil, errors.New("Query statement must specifiy raw")
 	}
 	tx_json["OpType"] = opType

@@ -180,7 +180,6 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 	var err error
 	var result *mysql.Resultset
 	var opt, k, v, f string
-	var flags int
 	vals := rows.(sqlparser.Values)
 	if len(vals) == 0 {
 		return nil, errors.ErrCmdUnsupport
@@ -203,21 +202,23 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 	f = sqlparser.String(tuple[3]) // flags for assign and cancelassign, or subscribe
 	f = strings.Trim(f, "'")
 
-	if strings.ToLower(opt) != ADMIN_OPT_SUBSCRIBE && strings.ToLower(opt) != ADMIN_OPT_UNSUBSCRIBE {
-		if len(f) > 0 {
-			// f matchs pattern of select|insert|update|delete|execute
-			sep := func(r rune) bool {
-				return r == '|' || r == ','
-			}
-			tokens := strings.FieldsFunc(f, sep)
-			for _, token := range tokens {
-				perm, ok := ripple.ChainSQLPerm[strings.ToLower(token)]
-				if ok {
-					flags |= perm
+	/*
+		if strings.ToLower(opt) != ADMIN_OPT_SUBSCRIBE && strings.ToLower(opt) != ADMIN_OPT_UNSUBSCRIBE {
+			if len(f) > 0 {
+				// f matchs pattern of select|insert|update|delete|execute
+				sep := func(r rune) bool {
+					return r == '|' || r == ','
+				}
+				tokens := strings.FieldsFunc(f, sep)
+				for _, token := range tokens {
+					perm, ok := ripple.ChainSQLPerm[strings.ToLower(token)]
+					if ok {
+						flags |= perm
+					}
 				}
 			}
 		}
-	}
+	*/
 
 	switch strings.ToLower(opt) {
 	case ADMIN_OPT_AS:
@@ -225,9 +226,9 @@ func (c *ClientConn) handleChainSQLCmd(rows sqlparser.InsertRows) (*mysql.Result
 	case ADMIN_OPT_USE:
 		err = c.handleAdminChainSQLUse(k)
 	case ADMIN_OPT_ASSIGN:
-		err = c.handleAdminChainSQLAssign(k, v, flags)
+		err = c.handleAdminChainSQLAssign(k, v, f)
 	case ADMIN_OPT_CANCELASSIGN:
-		err = c.handleAdminChainSQLCancelAssign(k, v, flags)
+		err = c.handleAdminChainSQLCancelAssign(k, v, f)
 	case ADMIN_OPT_SUBSCRIBE:
 		err = c.handleAdminChainSQLSubscribe(k, v, f, true)
 	case ADMIN_OPT_UNSUBSCRIBE:
@@ -503,7 +504,7 @@ func (c *ClientConn) handleAdminChainSQLUse(k string) error {
 	return nil
 }
 
-func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, flag int, assign bool) error {
+func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName, flag string, assign bool) error {
 	if c.ws_conn == nil {
 		return fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
 	}
@@ -519,7 +520,7 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 		as_secret = c.current_as.Secret
 	}
 	if len(as_account) == 0 || len(as_secret) == 0 {
-		return fmt.Errorf("Please use admin's commad provide opretor's account and secret")
+		return fmt.Errorf("Please use admin's commad provide operator's account and secret")
 	}
 
 	// get nameInDB
@@ -541,10 +542,26 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 	tableEntry.AddTableName(tableName, true)
 	//tableEntry.AddNameInDB(string(nameInDB))
 	tx.AddTableEntry(tableEntry)
+	tx.SetPublicKey("")
 
 	tx.SetUser(user)
-	if flag > 0 {
-		tx.SetFlags(flag)
+
+	if len(flag) > 0 {
+		// f matchs pattern of select|insert|update|delete|execute
+		sep := func(r rune) bool {
+			return r == '|' || r == ','
+		}
+		perms := make(map[string]bool, 1)
+		tokens := strings.FieldsFunc(flag, sep)
+		for _, token := range tokens {
+			if assign {
+				perms[strings.ToLower(token)] = true
+			} else {
+				perms[strings.ToLower(token)] = false
+			}
+		}
+
+		tx.AddOneRawItem(perms)
 	}
 
 	if assign {
@@ -558,11 +575,11 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 		time.Duration(c.proxy.cfg.Sync_timeout), c.proxy.cfg.Completed)
 }
 
-func (c *ClientConn) handleAdminChainSQLAssign(user, tableName string, flag int) error {
+func (c *ClientConn) handleAdminChainSQLAssign(user, tableName, flag string) error {
 	return handleChainSQLAssignAuthorization(c, user, tableName, flag, true)
 }
 
-func (c *ClientConn) handleAdminChainSQLCancelAssign(user, tableName string, flag int) error {
+func (c *ClientConn) handleAdminChainSQLCancelAssign(user, tableName, flag string) error {
 	return handleChainSQLAssignAuthorization(c, user, tableName, flag, false)
 }
 
