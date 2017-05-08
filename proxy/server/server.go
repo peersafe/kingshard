@@ -305,7 +305,13 @@ func (s *Server) newClientConn(co net.Conn) *ClientConn {
 
 	// init websocket
 	u := url.URL{Scheme: "ws", Host: s.cfg.WSAddr, Path: "/"}
-	c.ws_conn, _, _ = websocket.DefaultDialer.Dial(u.String(), nil)
+	var e error
+	c.ws_conn, _, e = websocket.DefaultDialer.Dial(u.String(), nil)
+	if e != nil {
+		golog.Debug("server", "newClientConne", "connect ChainSQL failure.",
+			0, u.String())
+		c.ws_conn = nil
+	}
 
 	c.pkg.Sequence = 0
 

@@ -66,6 +66,10 @@ func (c *ClientConn) handleQuery(sql string) (err error) {
 	var stmt sqlparser.Statement
 	//解析sql语句,得到的stmt是一个interface
 	if c.current_use != nil && len(c.current_use.Account) > 0 {
+		if c.ws_conn == nil {
+			return fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+		}
+
 		stmt, err = sqlparser.Parse2(sql, c.current_use.Account, c.ws_conn, ripple.GetNameInDB)
 	} else {
 		stmt, err = sqlparser.Parse(sql)
@@ -356,6 +360,10 @@ func (c *ClientConn) newEmptyResultset(stmt *sqlparser.Select) *mysql.Resultset 
 
 // Native SQL convert to ChainSQL and push to ChainSQL's node
 func (c *ClientConn) exeSQLWriteToChainSQL(stmt sqlparser.Statement) error {
+	if c.ws_conn == nil {
+		return fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+	}
+
 	tx := ripple.NewTransaction()
 
 	var as_account string
@@ -426,6 +434,10 @@ func (c *ClientConn) handleExec(stmt sqlparser.Statement, args []interface{}) er
 }
 
 func (c *ClientConn) handleDDL(ddl *sqlparser.DDL) error {
+	if c.ws_conn == nil {
+		return fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+	}
+
 	tx := ripple.NewTransaction()
 
 	var as_account string
@@ -454,10 +466,6 @@ func (c *ClientConn) handleDDL(ddl *sqlparser.DDL) error {
 	if len(use_account) == 0 {
 		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
 	}
-	//nameInDB, err := ripple.GetNameInDB(string(ddl.Table), use_account, c.ws_conn)
-	//if err != nil {
-	//	return err
-	//}
 
 	if err := ripple.HandleDDL(ddl, tx, nil); err != nil {
 		return err

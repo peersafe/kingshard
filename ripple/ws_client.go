@@ -72,7 +72,7 @@ func PushMessage(ws *websocket.Conn, data []byte) ([]byte, error) {
 	for {
 		select {
 		case <-prepare:
-			//fmt.Printf("PushMessage -> : %s\n", string(data))
+			fmt.Printf("PushMessage -> : %s\n", string(data))
 			if err := ws.WriteMessage(websocket.TextMessage, data); err != nil {
 				golog.Error("ripple", "WriteMessage", string(data), 0)
 				return nil, err

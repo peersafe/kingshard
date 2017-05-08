@@ -504,6 +504,10 @@ func (c *ClientConn) handleAdminChainSQLUse(k string) error {
 }
 
 func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, flag int, assign bool) error {
+	if c.ws_conn == nil {
+		return fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+	}
+
 	var as_account string
 	var as_secret string
 
@@ -528,10 +532,6 @@ func handleChainSQLAssignAuthorization(c *ClientConn, user, tableName string, fl
 	if len(use_account) == 0 {
 		return fmt.Errorf("Please use admin's commad switch owner who owns tables")
 	}
-	//nameInDB, err := ripple.GetNameInDB(tableName, use_account, c.ws_conn)
-	//if err != nil {
-	//	return err
-	//}
 
 	tx := ripple.NewTransaction()
 	tx.SetAccount(as_account)
@@ -571,6 +571,10 @@ func (c *ClientConn) OnChainSQLEvent(msg []byte) {
 }
 
 func (c *ClientConn) handleAdminChainSQLSubscribe(owner, tableName, subType string, subScribe bool) error {
+	if c.ws_conn == nil {
+		return fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+	}
+
 	chainsqlEvent := ripple.NewChainSQLEvent(c.ws_conn, c.OnChainSQLEvent)
 	return chainsqlEvent.SubscribeTable(owner, tableName)
 }

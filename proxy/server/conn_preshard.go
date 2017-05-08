@@ -184,6 +184,10 @@ func (c *ClientConn) GetExecDB(tokens []string, sql string) (*ExecuteDB, error) 
 			case mysql.TK_ID_DROP, mysql.TK_ID_RENAME, mysql.TK_ID_ALTER:
 				return nil, nil // ripple
 			case mysql.TK_ID_DESC:
+				if c.ws_conn == nil {
+					return nil, fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+				}
+
 				// get nameInDB
 				var use_account string
 				if c.current_use == nil {
@@ -479,6 +483,10 @@ func (c *ClientConn) getShowExecDB(sql string, tokens []string, tokensLen int) (
 	executeDB := new(ExecuteDB)
 	executeDB.IsSlave = true
 	if c.current_use != nil && len(c.current_use.Account) != 0 {
+		if c.ws_conn == nil {
+			return nil, fmt.Errorf("Connect ChainSQL failure.[%s]", c.proxy.cfg.WSAddr)
+		}
+
 		if tables, err := ripple.GetAccountTables(c.current_use.Account, c.ws_conn); err == nil {
 			c.writeChainSQLTableReply(tables)
 			return nil, errors.ErrIgnoreSQL

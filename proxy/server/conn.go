@@ -137,7 +137,9 @@ func (c *ClientConn) Close() error {
 		return nil
 	}
 
-	c.ws_conn.Close() // close web socket
+	if c.ws_conn != nil {
+		c.ws_conn.Close() // close web socket
+	}
 
 	c.c.Close()
 
